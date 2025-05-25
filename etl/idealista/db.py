@@ -18,7 +18,7 @@ class IdealistaDB:
             f"{city}_{file_type}.rda" for city in self.AVALIL_CITIES for file_type in self.FILE_TYPES
         ]
         if not os.path.exists(self.output_folder):
-            os.mkdir(self.output_folder, exist_ok=True)
+            os.makedirs(self.output_folder, exist_ok=True)
         print("Downloading Idealista data files...")
         # Download the .rda files if they do not exist in the output folder
         self.download_rdata()

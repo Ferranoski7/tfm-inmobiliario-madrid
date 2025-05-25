@@ -1,2 +1,6 @@
 rdata
 pandas
+sqlalchemy
+psycopg2-binary
+geopandas
+requests
