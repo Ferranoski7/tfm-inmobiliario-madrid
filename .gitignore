@@ -1,0 +1,14 @@
+.credentials.json
+venv/*
+data/
+.vscode/
+__pycache__/
+*.pyc
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+# Ignore Python bytecode files
+*.py[cod]
+# Ignore log files
+*.log
+# Ignore environment files
+.env
