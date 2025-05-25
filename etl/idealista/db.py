@@ -2,58 +2,92 @@ import os
 import rdata
 import urllib.request
 
-file_names = ["Barcelona_POIS.rda", "Barcelona_Polygons.rda", "Barcelona_Sale.rda", "Madrid_POIS.rda",
-              "Madrid_Polygons.rda",  "Madrid_Sale.rda", "Valencia_POIS.rda", "Valencia_Polygons.rda",
-              "Valencia_Sale.rda", "properties_by_district.rda"]
 
 
-def download_rdata(output_folder="data"):
+class IdealistaDB:
     """
-    Function that downloads the .rda files from Idealista repository.
-    For each file, it is verified beforehand if the file is already in the /data folder in order to
-    avoid unnecessary downloads
+    Class to handle the Idealista database operations.
+    It includes methods to download the data files and read them into a dictionary.
     """
-    for rda_file in file_names:
-        file_path = os.path.join(output_folder, rda_file)
-        if not os.path.isfile(file_path):
-            urllib.request.urlretrieve("https://github.com/paezha/idealista18/raw/master/data/" + rda_file, file_path)
+    AVALIL_CITIES = ["Barcelona", "Madrid", "Valencia"]
+    FILE_TYPES = ["POIS", "Polygons", "Sale"]
+
+    def __init__(self, output_folder="data"):
+        self.output_folder = output_folder
+        self.FILE_NAMES = [
+            f"{city}_{file_type}.rda" for city in self.AVALIL_CITIES for file_type in self.FILE_TYPES
+        ]
+        if not os.path.exists(self.output_folder):
+            os.mkdir(self.output_folder, exist_ok=True)
+        print("Downloading Idealista data files...")
+        # Download the .rda files if they do not exist in the output folder
+        self.download_rdata()
+        self.results = {}
+
+    def download_rdata(self):
+        """
+        Downloads the .rda files from the Idealista repository if they do not already exist in the output folder.
+        """
+        for rda_file in self.FILE_NAMES:
+            file_path = os.path.join(self.output_folder, rda_file)
+            if not os.path.isfile(file_path):
+                urllib.request.urlretrieve("https://github.com/paezha/idealista18/raw/master/data/" + rda_file, file_path)
+            else:
+                continue
+
+    def read_data(self, city=None) -> dict:
+        """
+        Reads the data files from the output folder and returns a dictionary containing the data.
+        """
+        results = {}
+
+        if city is None:
+            file_names = self.FILE_NAMES
         else:
-            continue
+            file_names = [f"{city}_{file_type}.rda" for file_type in self.FILE_TYPES if f"{city}_{file_type}.rda" in self.FILE_NAMES]
+        for file in os.listdir(self.output_folder):
+            if file in file_names and file.endswith(".rda"):
+                file_path = os.path.join(self.output_folder, file)
+                results[file.replace(".rda", "")] = rdata.read_rda(file_path, default_encoding="utf8")[file.replace(".rda", "")]
+        self.results = results
+        return results
+    
+    def data_structure(self,data = None, root = True, depth = 0):
+        """
+        Function to print the structure of the data dictionary.
+        """
+        if data is None:
+            data = self.results
+        if data is None:
+            print("No data available.")
+            return
+        if isinstance(data, dict):
+            if root:
+                print("Data Structure:")
+            for key, value in data.items():
+                print("  " * (depth) + f"{key}:")
+                self.data_structure(value, root=False, depth=depth + 1)
+        else:
+            print("  " * (depth) + f"{type(data).__name__} with {len(data)} entries" if hasattr(data, '__len__') else f"{type(data).__name__}")
 
 
-def read_data(output_folder="data")-> dict:
-    """
-    For each file located in output_folder, extract the information as a dataframe or a dictionary containing data
-    During the execution of this function UserWarning related with rdata package may appear but can be ignored
-    """
-    results = {}
-    for file_name in os.listdir(output_folder):
-        if file_name.endswith(".rda"):
-            file_path = os.path.join(output_folder, file_name)
-            results[file_name.replace(".rda", "")] = rdata.read_rda(file_path, default_encoding="utf8")
-    return results
+
 
 
 
 if __name__ == '__main__':
-    madrid_pois = rdata.read_rda("data/Madrid_POIS.rda")
-    madrid_polygons = rdata.read_rda("data/Madrid_Polygons.rda", default_encoding="utf8")
-    madrid_sale = rdata.read_rda("data/Madrid_Sale.rda")
-
-    print("Madrid_POIS")
-    print(madrid_pois['Madrid_POIS'].keys())
-    madrid_city_center = madrid_pois["Madrid_POIS"]["City_Center"]
-    madrid_metro = madrid_pois["Madrid_POIS"]["Metro"]
-    madrid_castellana = madrid_pois["Madrid_POIS"]["Castellana"]
-    print(madrid_city_center)
-    print(madrid_metro.iloc[0])
-    print(madrid_castellana)
-    print("\n")
-
-    print("Madrid_Polygons")
-    print(madrid_polygons['Madrid_Polygons'].iloc[0])
-    print("\n")
-
-    print("Madrid_Sale")
-    print(madrid_sale['Madrid_Sale'].iloc[0])
-    print("\n")
+    db = IdealistaDB(output_folder="data")
+    db.read_data(city="Madrid")
+    db.data_structure()
+    
+    for name, dataframe in  db.results["Madrid_POIS"].items():
+        print(f"DataFrame Name: {name}, shape: {dataframe.shape}")
+        print(dataframe.head())
+        
+    print("\nDataFrames in the IdealistaDB:")
+    print("Madrid_Polygons:")
+    print(db.results["Madrid_Polygons"].keys())
+    print(db.results["Madrid_Polygons"].head())
+    print("Madrid_Sale:")
+    print(db.results["Madrid_Sale"].keys())
+    print(db.results["Madrid_Sale"].head())
