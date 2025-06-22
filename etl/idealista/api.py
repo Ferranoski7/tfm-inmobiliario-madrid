@@ -53,6 +53,36 @@ def load_token(credentials_path: str = os.path.abspath(".credentials/idealista_a
         credentials = json.load(cred_file)
     return credentials["access_token"]
 
+def search_by_location(token: str, location_id: str, max_items: int = 50, page: int = 1) -> Dict:
+    url = "https://api.idealista.com/3.5/es/search"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/x-www-form-urlencoded"}
+    data = {
+        "locationId": location_id,
+        "operation": "sale",
+        "propertyType": "homes",
+        "maxItems": max_items,
+        "numPage": page
+    }
+    resp = requests.post(url, headers=headers, data=data)
+    resp.raise_for_status()
+    return resp.json()
+
+def run_queries(token: str, location_ids: list[str]) -> list[Dict]:
+    seen = set()
+    all_items = []
+    for loc in location_ids:
+        try:
+            resp = search_by_location(token, loc)
+            for item in resp.get("elementList", []):
+                prop_id = item.get("propertyCode")
+                if prop_id not in seen:
+                    seen.add(prop_id)
+                    all_items.append(item)
+            print(f"✅ {loc}: {len(resp.get('elementList', []))} anuncios, {len(all_items)} únicos acumulados")
+        except Exception as e:
+            print(f"⚠️ Error en {loc}: {e}")
+    return all_items
+
 def search_properties(
     token: str,
     center: str,
@@ -128,6 +158,12 @@ def normalize_floor(value):
         return None
 
 class DatabaseDataTransformer:
+    from etl.idealista.text_extraction import (
+    has_terrace, has_boxroom, has_wardrobe, has_doorman, has_garden,
+    has_orientation, extract_construction_year, extract_max_building_floors,
+    extract_dwelling_count
+)
+
     """
     Transformador para adaptar los datos de la API de Idealista al esquema de la base de datos.
     """
@@ -141,38 +177,38 @@ class DatabaseDataTransformer:
             "CONSTRUCTEDAREA": lambda x: x.get("size"),
             "ROOMNUMBER": lambda x: x.get("rooms"),
             "BATHNUMBER": lambda x: x.get("bathrooms"),
-            "HASTERRACE": lambda x: int(x.get("hasTerrace", False)),
             "HASLIFT": lambda x: int(x.get("hasLift", False)),
             "HASAIRCONDITIONING": lambda x: int(x.get("hasAirConditioning", False)),
             "HASPARKINGSPACE": lambda x: int(x.get("parkingSpace", {}).get("hasParkingSpace", False)),
             "ISPARKINGSPACEINCLUDEDINPRICE": lambda x: int(x.get("parkingSpace", {}).get("isParkingSpaceIncludedInPrice", False)),
             "PARKINGSPACEPRICE": lambda x: x.get("parkingSpace", {}).get("price"),
-            "HASNORTHORIENTATION": lambda x: int(x.get("hasNorthOrientation", False)),
-            "HASSOUTHORIENTATION": lambda x: int(x.get("hasSouthOrientation", False)),
-            "HASEASTORIENTATION": lambda x: int(x.get("hasEastOrientation", False)),
-            "HASWESTORIENTATION": lambda x: int(x.get("hasWestOrientation", False)),
-            "HASBOXROOM": lambda x: int(x.get("hasBoxRoom", False)),
-            "HASWARDROBE": lambda x: int(x.get("hasWardrobe", False)),
-            "HASSWIMMINGPOOL": lambda x: int(x.get("hasSwimmingPool", False)),
-            "HASDOORMAN": lambda x: int(x.get("hasDoorman", False)),
-            "HASGARDEN": lambda x: int(x.get("hasGarden", False)),
             "ISDUPLEX": lambda x: int(x.get("detailedType", {}).get("subTypology", "") == "duplex"),
             "ISSTUDIO": lambda x: int(x.get("detailedType", {}).get("subTypology", "") == "studio"),
-            "ISINTOPFLOOR": lambda x: int(x.get("isInTopFloor", False)),
-            "FLOORCLEAN": lambda x: normalize_floor(x.get("floor")),
+            "ISINTOPFLOOR": lambda x: int(x.get("isInTopFloor", False)), #TODO extraer de descripción
+            "FLOORCLEAN": lambda x: normalize_floor(x.get("floor")), #TODO extraer de descripción
             "FLATLOCATIONID": lambda x: f"{x.get('province', '')}|{x.get('municipality', '')}|{x.get('district', '')}|{x.get('neighborhood', '')}",
-            "CADCONSTRUCTIONYEAR": lambda x: x.get("cadConstructionYear"),
-            "CADMAXBUILDINGFLOOR": lambda x: x.get("cadMaxBuildingFloor"),
-            "CADDWELLINGCOUNT": lambda x: x.get("cadDwellingCount"),
-            "CADASTRALQUALITYID": lambda x: x.get("cadastralQualityId"),
             "BUILTTYPEID_1": lambda x: int(x.get("detailedType", {}).get("typology", "") == "flat"),
             "BUILTTYPEID_2": lambda x: int(x.get("detailedType", {}).get("typology", "") == "chalet"),
             "BUILTTYPEID_3": lambda x: int(x.get("detailedType", {}).get("typology", "") == "penthouse"),
-            "DISTANCE_TO_CITY_CENTER": lambda x: None,  # TODO Por calcular si tienes centroide de Madrid
-            "DISTANCE_TO_METRO": lambda x: None,        # TODO Por calcular si tienes centroide de Madrid
-            "DISTANCE_TO_CASTELLANA": lambda x: None,   # TODO Por calcular si tienes centroide de Madrid
+            "DISTANCE_TO_CITY_CENTER": lambda x: None,  # TODO A partir de Polygons y/o POIS
+            "DISTANCE_TO_METRO": lambda x: None,        # TODO A partir de Polygons y/o POIS
+            "DISTANCE_TO_CASTELLANA": lambda x: None,   # TODO A partir de Polygons y/o POIS
             "LATITUDE": lambda x: x.get("latitude"),
-            "LONGITUDE": lambda x: x.get("longitude")
+            "LONGITUDE": lambda x: x.get("longitude"),
+            "HASTERRACE": lambda x: int(x.get("hasTerrace", False) or has_terrace(x.get("description", ""))),
+            "HASBOXROOM": lambda x: int(x.get("hasBoxRoom", False) or has_boxroom(x.get("description", ""))),
+            "HASWARDROBE": lambda x: int(x.get("hasWardrobe", False) or has_wardrobe(x.get("description", ""))),
+            "HASDOORMAN": lambda x: int(x.get("hasDoorman", False) or has_doorman(x.get("description", ""))),
+            "HASGARDEN": lambda x: int(x.get("hasGarden", False) or has_garden(x.get("description", ""))),
+            "HASNORTHORIENTATION": lambda x: has_orientation(x.get("description", ""), "norte"),
+            "HASSOUTHORIENTATION": lambda x: has_orientation(x.get("description", ""), "sur"),
+            "HASEASTORIENTATION": lambda x: has_orientation(x.get("description", ""), "este"),
+            "HASWESTORIENTATION": lambda x: has_orientation(x.get("description", ""), "oeste"),
+            "CADCONSTRUCTIONYEAR": lambda x: x.get("cadConstructionYear") or extract_construction_year(x.get("description", "")),
+            "CADMAXBUILDINGFLOOR": lambda x: x.get("cadMaxBuildingFloor") or extract_max_building_floors(x.get("description", "")),
+            "CADDWELLINGCOUNT": lambda x: x.get("cadDwellingCount") or extract_dwelling_count(x.get("description", "")),
+            "HASSWIMMINGPOOL": lambda x: has_pool(x.get("description","")),
+
         }
 
     def transform(self, data) -> dict:
