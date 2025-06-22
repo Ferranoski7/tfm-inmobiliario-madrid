@@ -106,6 +106,72 @@ def search_properties(
     else:
         raise requests.HTTPError(f"Error {response.status_code}: {response.text}")
 
+class DatabaseDataTransformer:
+    """
+    Class to handle data transformation for Idealista API responses.
+    This class can be extended to include methods for transforming the data
+    into a format suitable for database insertion or further processing.
+    """
+
+    def __init__(self):
+        self.db_columns_entries = {
+            "AMENITYID":
+            "ASSETID":
+            "BATHNUMBER":
+            "BUILTTYPEID_1":
+            "BUILTTYPEID_2":
+            "BUILTTYPEID_3":
+            "CADASTRALQUALITYID":
+            "CADCONSTRUCTIONYEAR":
+            "CADDWELLINGCOUNT":
+            "CADMAXBUILDINGFLOOR":
+            "CONSTRUCTEDAREA":
+            "CONSTRUCTIONYEAR":
+            "DISTANCE_TO_CASTELLANA":
+            "DISTANCE_TO_CITY_CENTER":
+            "DISTANCE_TO_METRO":
+            "FLATLOCATIONID":
+            "FLOORCLEAN":
+            "HASAIRCONDITIONING":
+            "HASBOXROOM":
+            "HASDOORMAN":
+            "HASEASTORIENTATION":
+            "HASGARDEN":
+            "HASLIFT":
+            "HASNORTHORIENTATION":
+            "HASPARKINGSPACE":
+            "HASSOUTHORIENTATION":
+            "HASSWIMMINGPOOL":
+            "HASTERRACE":# 1 if haas terrace, 0 otherwise
+            "HASWARDROBE": # 1 if has wardrobe, 0 otherwise
+            "HASWESTORIENTATION":# 1 if has west orientation, 0 otherwise
+            "ISDUPLEX": # 1 if is duplex, 0 otherwise
+            "ISINTOPFLOOR":# 1 if is top floor, 0 otherwise
+            "ISPARKINGSPACEINCLUDEDINPRICE": # 1 if parking space is included in price, 0 otherwise
+            "ISSTUDIO":# 1 if is studio, 0 otherwise
+            "latitude":
+            "LATITUDE":
+            "longitude":
+            "LONGITUDE":
+            "PARKINGSPACEPRICE":
+            "PERIOD":
+            "PRICE":
+            "ROOMNUMBER":
+            "UNITPRICE":
+        } 
+
+
+    def transform(self, data) -> Dict[str, Any]:
+        """
+        Transform the data into a desired format.
+        
+        Returns:
+            dict: Transformed data.
+        """
+        # Implement transformation logic here
+        return data  # Placeholder for actual transformation logic
+
+
 # Example usage
 if __name__ == "__main__":
     token = load_token()
