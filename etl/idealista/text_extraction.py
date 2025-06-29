@@ -11,6 +11,13 @@ def normalize_text(text: str) -> str:
         return ""
     return unidecode.unidecode(text.lower().strip())
 
+def is_on_top_floor(description: str) -> int:
+    """Determina si la descripción indica que el piso está en la última planta.
+    Ej: "ático", "última planta", "en la última planta"
+    """
+    text = normalize_text(description)
+    keywords = ["ático", "última planta", "en la última planta", "en la última planta"]
+    return int(any(k in text for k in keywords))
 
 def has_terrace(description: str) -> int:
     text = normalize_text(description)
@@ -47,10 +54,10 @@ def has_orientation(description: str, direction: str) -> int:
     text = normalize_text(description)
     return int(f"orientacion {direction}" in text)
     
-def has_pool(description: str, direction: str) -> int:
+def has_pool(description: str) -> int:
     """
-    Detecta orientación cardinal en la descripción.
-    Ej: has_orientation(desc, 'sur') => 1 si contiene 'orientacion sur'
+    Detecta si hay piscina en el anuncio.
+    Ej: has_pool(desc) => 1 si contiene 'piscina'
     """
     text = normalize_text(description)
     return int("piscina" in text)

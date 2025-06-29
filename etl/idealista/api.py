@@ -6,6 +6,7 @@ import json
 from typing import Optional, Dict, Any
 import os
 from datetime import datetime
+from sqlalchemy import text
 
 
 def generate_token(API_KEY, API_SECRET, destination = ".credentials/idealista_access_token.json") -> str:
@@ -157,12 +158,109 @@ def normalize_floor(value):
     except:
         return None
 
-class DatabaseDataTransformer:
-    from etl.idealista.text_extraction import (
+from etl.idealista.text_extraction import (
     has_terrace, has_boxroom, has_wardrobe, has_doorman, has_garden,
     has_orientation, extract_construction_year, extract_max_building_floors,
-    extract_dwelling_count
+    extract_dwelling_count, has_pool, is_on_top_floor
 )
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the distance between two geographical points using the Haversine formula.
+    
+    Args:
+        lat1 (float): Latitude of the first point.
+        lon1 (float): Longitude of the first point.
+        lat2 (float): Latitude of the second point.
+        lon2 (float): Longitude of the second point.
+    
+    Returns:
+        float: Distance in kilometers.
+    """
+    from math import radians, sin, cos, sqrt, atan2
+
+    R = 6371000  # Radius of the Earth in meters
+    phi1 = radians(lat1)
+    phi2 = radians(lat2)
+    delta_phi = radians(lat2 - lat1)
+    delta_lambda = radians(lon2 - lon1)
+
+    a = sin(delta_phi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(delta_lambda / 2) ** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return R * c /1000
+def compute_distance_to_city_center(latitude_func, longitude_func):
+    """
+    Placeholder function to compute distance to city center.
+    This should be replaced with actual logic using polygons or POIs.
+    """
+    from db import engine
+    # fetch the city center coordinates from the database in table "city_center"
+    with engine.connect() as conn:
+        result = conn.execute(text('SELECT * FROM city_center LIMIT 1'))
+        row = result.fetchone()
+        if row:
+            city_center_longitude, city_center_latitude = row
+            # Use the provided latitude and longitude functions to get the property's coordinates
+            property_latitude = latitude_func()
+            property_longitude = longitude_func()
+            # Here you would implement the actual distance calculation logic
+            # For now, we return a placeholder value
+            return calculate_distance(property_latitude, property_longitude, city_center_latitude, city_center_longitude)
+        else:
+            return None
+
+def compute_distance_to_metro(latitude_func, longitude_func):
+    """
+    Placeholder function to compute distance to metro stations.
+    This should be replaced with actual logic using polygons or POIs.
+    """
+    from db import engine
+    # fetch the metro coordinates from the database in table "metro"
+    best_distance = None
+    with engine.connect() as conn:
+        result = conn.execute(text('SELECT * FROM metro'))
+        row = result.fetchone()
+        while row is not None:
+            metro_longitude, metro_latitude = row
+            metro_longitude, metro_latitude = row
+            # Use the provided latitude and longitude functions to get the property's coordinates
+            property_latitude = latitude_func()
+            property_longitude = longitude_func()
+            
+            new_distance = calculate_distance(property_latitude, property_longitude, metro_latitude, metro_longitude)
+            if best_distance is None or new_distance < best_distance:
+                best_distance = calculate_distance(property_latitude, property_longitude, metro_latitude, metro_longitude)
+            row = result.fetchone()
+    return best_distance
+
+def compute_distance_to_castellana(latitude_func, longitude_func):
+    """
+    Placeholder function to compute distance to metro stations.
+    This should be replaced with actual logic using polygons or POIs.
+    """
+    from db import engine
+    # fetch the metro coordinates from the database in table "metro"
+    best_distance = None
+    with engine.connect() as conn:
+        result = conn.execute(text('SELECT * FROM castellana'))
+        row = result.fetchone()
+        while row is not None:
+            metro_longitude, metro_latitude = row
+            metro_longitude, metro_latitude = row
+            # Use the provided latitude and longitude functions to get the property's coordinates
+            property_latitude = latitude_func()
+            property_longitude = longitude_func()
+            
+            new_distance = calculate_distance(property_latitude, property_longitude, metro_latitude, metro_longitude)
+            if best_distance is None or new_distance < best_distance:
+                best_distance = calculate_distance(property_latitude, property_longitude, metro_latitude, metro_longitude)
+            row = result.fetchone()
+    return best_distance
+
+class DatabaseDataTransformer:
+    
 
     """
     Transformador para adaptar los datos de la API de Idealista al esquema de la base de datos.
@@ -184,15 +282,24 @@ class DatabaseDataTransformer:
             "PARKINGSPACEPRICE": lambda x: x.get("parkingSpace", {}).get("price"),
             "ISDUPLEX": lambda x: int(x.get("detailedType", {}).get("subTypology", "") == "duplex"),
             "ISSTUDIO": lambda x: int(x.get("detailedType", {}).get("subTypology", "") == "studio"),
-            "ISINTOPFLOOR": lambda x: int(x.get("isInTopFloor", False)), #TODO extraer de descripción
-            "FLOORCLEAN": lambda x: normalize_floor(x.get("floor")), #TODO extraer de descripción
+            "ISINTOPFLOOR": lambda x: is_on_top_floor(x.get("description","")), 
+            "FLOORCLEAN": lambda x: normalize_floor(x.get("description","")), #TODO extraer de descripción
             "FLATLOCATIONID": lambda x: f"{x.get('province', '')}|{x.get('municipality', '')}|{x.get('district', '')}|{x.get('neighborhood', '')}",
             "BUILTTYPEID_1": lambda x: int(x.get("detailedType", {}).get("typology", "") == "flat"),
             "BUILTTYPEID_2": lambda x: int(x.get("detailedType", {}).get("typology", "") == "chalet"),
             "BUILTTYPEID_3": lambda x: int(x.get("detailedType", {}).get("typology", "") == "penthouse"),
-            "DISTANCE_TO_CITY_CENTER": lambda x: None,  # TODO A partir de Polygons y/o POIS
-            "DISTANCE_TO_METRO": lambda x: None,        # TODO A partir de Polygons y/o POIS
-            "DISTANCE_TO_CASTELLANA": lambda x: None,   # TODO A partir de Polygons y/o POIS
+            "DISTANCE_TO_CITY_CENTER": lambda x: compute_distance_to_city_center(
+                lambda: x.get("latitude"),
+                lambda: x.get("longitude")
+            ), 
+            "DISTANCE_TO_METRO": lambda x: compute_distance_to_metro(
+                lambda: x.get("latitude"),
+                lambda: x.get("longitude")
+            ),        
+            "DISTANCE_TO_CASTELLANA": lambda x: compute_distance_to_castellana(
+                lambda: x.get("latitude"),
+                lambda: x.get("longitude")
+            ),
             "LATITUDE": lambda x: x.get("latitude"),
             "LONGITUDE": lambda x: x.get("longitude"),
             "HASTERRACE": lambda x: int(x.get("hasTerrace", False) or has_terrace(x.get("description", ""))),
