@@ -55,8 +55,9 @@ if len(json_files) == 0:
     print(f"No se encontraron archivos JSON en {json_dir}.")
     exit(0)
 madrid_sale_path = os.path.join(processed_dir, "Madrid_Sale.xlsx")
+print(f"Loading existing data from {madrid_sale_path} if it exists.")
 madrid_sale_df = pd.read_excel(madrid_sale_path) if os.path.exists(madrid_sale_path) else pd.DataFrame()
-
+print(f"Current number of entries in Madrid_Sale.xlsx: {len(madrid_sale_df)}")
 def load_json_data(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         return json.load(file)
