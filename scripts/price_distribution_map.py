@@ -58,7 +58,7 @@ barrios_gdf['BARRIO_ID'] = barrios_gdf['LOCATIONNAME'].str[:].str.upper()
 sorted_barrios = barrios_gdf.dropna(subset=['PRICE']).sort_values('PRICE', ascending=False)
 barrios_mas_caros = sorted_barrios.head(5)
 barrios_mas_baratos = sorted_barrios.tail(10)
-barrios_gdf_filtrado = barrios_gdf
+barrios_gdf_filtrado = sorted_barrios
 
 # Asignar el orden de precio (solo para los seleccionados)
 barrios_gdf_filtrado = barrios_gdf_filtrado.copy()
