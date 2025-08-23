@@ -190,13 +190,19 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     return R * c /1000
-def compute_distance_to_city_center(latitude_func, longitude_func):
+def compute_distance_to_city_center(latitude_func, longitude_func, offline = False):
     """
     Placeholder function to compute distance to city center.
     This should be replaced with actual logic using polygons or POIs.
     """
-    from db import engine
+    
     # fetch the city center coordinates from the database in table "city_center"
+    if offline:
+        import pandas as pd
+        data_path = os.path.abspath(os.path.join(__file__, "..", "..","..","data","processed","Madrid_POIS_City_Center.xlsx"))
+        df = pd.read_excel(data_path)
+        return calculate_distance(latitude_func(), longitude_func(), df.iloc[0]['Lat'], df.iloc[0]['Lon'])
+    from db import engine
     with engine.connect() as conn:
         result = conn.execute(text('SELECT * FROM city_center LIMIT 1'))
         row = result.fetchone()
@@ -211,14 +217,24 @@ def compute_distance_to_city_center(latitude_func, longitude_func):
         else:
             return None
 
-def compute_distance_to_metro(latitude_func, longitude_func):
+def compute_distance_to_metro(latitude_func, longitude_func, offline = False):
     """
     Placeholder function to compute distance to metro stations.
     This should be replaced with actual logic using polygons or POIs.
     """
+    best_distance = None
+    if offline:
+        import pandas as pd
+        data_path = os.path.abspath(os.path.join(__file__, "..", "..","..","data","processed","Madrid_POIS_Metro.xlsx"))
+        df = pd.read_excel(data_path)
+        for index, row in df.iterrows():
+            new_distance = calculate_distance(latitude_func(), longitude_func(), row['Lat'], row['Lon'])
+            if best_distance is None or new_distance < best_distance:
+                best_distance = new_distance
+        return best_distance
+    
     from db import engine
     # fetch the metro coordinates from the database in table "metro"
-    best_distance = None
     with engine.connect() as conn:
         result = conn.execute(text('SELECT * FROM metro'))
         row = result.fetchone()
@@ -235,14 +251,23 @@ def compute_distance_to_metro(latitude_func, longitude_func):
             row = result.fetchone()
     return best_distance
 
-def compute_distance_to_castellana(latitude_func, longitude_func):
+def compute_distance_to_castellana(latitude_func, longitude_func, offline = False):
     """
     Placeholder function to compute distance to metro stations.
     This should be replaced with actual logic using polygons or POIs.
     """
+    best_distance = None
+    if offline:
+        import pandas as pd
+        data_path = os.path.abspath(os.path.join(__file__, "..", "..","..","data","processed","Madrid_POIS_Castellana.xlsx"))
+        df = pd.read_excel(data_path)
+        for index, row in df.iterrows():
+            new_distance = calculate_distance(latitude_func(), longitude_func(), row['Lat'], row['Lon'])
+            if best_distance is None or new_distance < best_distance:
+                best_distance = new_distance
+        return best_distance
     from db import engine
     # fetch the metro coordinates from the database in table "metro"
-    best_distance = None
     with engine.connect() as conn:
         result = conn.execute(text('SELECT * FROM castellana'))
         row = result.fetchone()
@@ -266,7 +291,7 @@ class DatabaseDataTransformer:
     Transformador para adaptar los datos de la API de Idealista al esquema de la base de datos.
     """
 
-    def __init__(self):
+    def __init__(self, offline = False):
         self.db_columns_entries = {
             "ASSETID": lambda x: x.get("propertyCode"),
             "PERIOD": lambda x: datetime.now().strftime("%Y%m"),
@@ -290,15 +315,18 @@ class DatabaseDataTransformer:
             "BUILTTYPEID_3": lambda x: int(x.get("detailedType", {}).get("typology", "") == "penthouse"),
             "DISTANCE_TO_CITY_CENTER": lambda x: compute_distance_to_city_center(
                 lambda: x.get("latitude"),
-                lambda: x.get("longitude")
+                lambda: x.get("longitude"),
+                offline = offline
             ), 
             "DISTANCE_TO_METRO": lambda x: compute_distance_to_metro(
                 lambda: x.get("latitude"),
-                lambda: x.get("longitude")
+                lambda: x.get("longitude"),
+                offline = offline
             ),        
             "DISTANCE_TO_CASTELLANA": lambda x: compute_distance_to_castellana(
                 lambda: x.get("latitude"),
-                lambda: x.get("longitude")
+                lambda: x.get("longitude"),
+                offline = offline
             ),
             "LATITUDE": lambda x: x.get("latitude"),
             "LONGITUDE": lambda x: x.get("longitude"),
